@@ -58,10 +58,9 @@ class ButtonsPage {
             onStarted: (unitId, control) => this._live(unitId, control, 'held'),
             onMoved: (unitId, dx, dy) => this._moved(unitId, dx, dy),
             onEnded: (unitId, cancelled) => this._live(unitId, null, cancelled ? 'cancelled' : 'released'),
-            onSolaar: () => this.refresh(),
+            onSolaar: () => this.refresh(), // also called once at start, which runs the first scan
         });
         this._render();
-        this.refresh();
     }
 
     _buildStatus() {

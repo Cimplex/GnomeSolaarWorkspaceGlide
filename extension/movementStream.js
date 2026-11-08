@@ -9,14 +9,14 @@ export const STREAM_INTERFACE = 'io.github.pwr_solaar.solaar.MovementStream';
 const SIGNATURES = {Started: '(sq)', Moved: '(sdd)', Ended: '(sb)'};
 
 // Calls onStarted(unitId, control), onMoved(unitId, dx, dy), onEnded(unitId, cancelled)
-// and onSolaar(present) when Solaar appears on or leaves the session bus.
+// and onSolaar(present) once at start and whenever Solaar appears on or leaves the session bus.
 export class MovementStream {
     constructor({onStarted = () => {}, onMoved = () => {}, onEnded = () => {}, onSolaar = () => {},
         connection = Gio.DBus.session} = {}) {
         this._connection = connection;
         this._handlers = {Started: onStarted, Moved: onMoved, Ended: onEnded};
         this._onSolaar = onSolaar;
-        this.solaarPresent = false;
+        this.solaarPresent = null; // unknown until the bus answers; the first answer is always reported
         // Subscribing by well-known name: the bus only delivers signals from
         // whichever process currently owns it, so another program cannot fake them.
         this._subscription = connection.signal_subscribe(SOLAAR_BUS_NAME, STREAM_INTERFACE, null,

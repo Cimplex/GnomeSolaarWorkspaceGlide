@@ -62,7 +62,7 @@ export default class SolaarWorkspaceGlide extends Extension {
             onSolaar: present => {
                 if (!present)
                     this._tracker.reset(); // Solaar quit or crashed mid-hold
-                console.log(`${LOG} Solaar ${present ? 'is on' : 'left'} the session bus`);
+                console.log(`${LOG} Solaar is ${present ? '' : 'not '}on the session bus`);
             },
         });
         this._testService = new TestService(kind => this._arm('pointer', kind));
