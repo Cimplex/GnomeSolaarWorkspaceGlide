@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.solaar-workspace-glide" path="/org/gnome/shell/extensions/solaar-workspace-glide/">
+    <key name="sensitivity" type="d">
+      <default>3.0</default>
+      <range min="0.25" max="12.0"/>
+      <summary>Gesture distance multiplier</summary>
+    </key>
+    <key name="acceleration" type="d">
+      <default>1.0</default>
+      <range min="0.0" max="3.0"/>
+      <summary>Progressive distance acceleration; zero turns the curve off</summary>
+    </key>
+    <key name="direction-threshold" type="d">
+      <default>8.0</default>
+      <range min="2.0" max="100.0"/>
+      <summary>Movement, in counts at 1000 DPI, before a hold picks horizontal or overview</summary>
+    </key>
+    <key name="natural-workspace-direction" type="b">
+      <default>false</default>
+      <summary>Reverse the horizontal workspace slide relative to mouse movement</summary>
+    </key>
+    <key name="release-deadtime-ms" type="u">
+      <default>350</default>
+      <range min="0" max="2000"/>
+      <summary>Pointer hold after releasing the button, in milliseconds</summary>
+    </key>
+    <key name="listen-all-buttons" type="b">
+      <default>true</default>
+      <summary>Glide with every button that Solaar streams</summary>
+    </key>
+    <key name="selected-buttons" type="as">
+      <default>[]</default>
+      <summary>Buttons to glide with when listen-all-buttons is off, as "unitId:control"</summary>
+    </key>
+    <key name="seen-buttons" type="as">
+      <default>[]</default>
+      <summary>Buttons that have sent Movement Stream signals, as "unitId:control"</summary>
+    </key>
+    <key name="known-devices" type="s">
+      <default>'[]'</default>
+      <summary>Devices and buttons from the last Solaar scan (JSON), shown while disconnected</summary>
+    </key>
+    <key name="debug-progress" type="b">
+      <default>false</default>
+      <summary>Show the gesture progress badge and detailed logs</summary>
+    </key>
+  </schema>
+</schemalist>

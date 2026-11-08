@@ -1,0 +1,10 @@
+{
+  "uuid": "solaar-workspace-glide@cimplex",
+  "name": "Solaar Workspace Glide",
+  "description": "Hold a Logitech mouse button and glide between workspaces or into the overview. Uses the Movement Stream signals sent by Solaar, so Solaar keeps running.",
+  "url": "https://github.com/Cimplex/GnomeSolaarWorkspaceGlide",
+  "settings-schema": "org.gnome.shell.extensions.solaar-workspace-glide",
+  "shell-version": ["50"],
+  "version": 1,
+  "version-name": "0.1.0"
+}
