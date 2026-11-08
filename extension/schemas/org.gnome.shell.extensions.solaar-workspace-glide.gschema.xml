@@ -26,12 +26,12 @@
       <summary>Experimental: a quick movement that is still fast at release switches however far it went</summary>
     </key>
     <key name="flick-min-speed" type="u">
-      <default>150</default>
+      <default>60</default>
       <range min="20" max="2000"/>
       <summary>Speed, in millimetres per second, a movement must reach to count as a flick</summary>
     </key>
     <key name="flick-keep-percent" type="u">
-      <default>50</default>
+      <default>60</default>
       <range min="10" max="100"/>
       <summary>After its fastest moment, a flick must keep at least this percent of that speed until release</summary>
     </key>

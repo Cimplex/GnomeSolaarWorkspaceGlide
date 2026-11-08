@@ -118,7 +118,7 @@ export class GestureTracker {
         this._now = now;
         this.threshold = threshold;
         // Experimental: {enabled, minSpeed (mm/s), keepRatio (0..1)}
-        this.flick = {enabled: false, minSpeed: 150, keepRatio: 0.5};
+        this.flick = {enabled: false, minSpeed: 60, keepRatio: 0.6};
         this.lastFlick = null; // the last judgement, for logs
         this._flickX = new FlickDetector();
         this._flickY = new FlickDetector();

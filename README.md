@@ -117,14 +117,14 @@ Movement is reported at 1000 DPI whatever your mouse's DPI setting, so gliding f
 
 With **Flick to switch** on (Gestures page, Experimental), a quick movement switches even if it went less than the switch point. It counts as a flick when all of these are true:
 
-- it reached the **flick speed** (150 mm/s by default),
+- it reached the **flick speed** (60 mm/s by default),
 - it never turned back,
-- after its fastest moment it kept at least the **keep speed** share of that speed (50% by default) until you let go. Slowing down a lot, or pausing before letting go, settles normally.
+- after its fastest moment it kept at least the **keep speed** share of that speed (60% by default) until you let go. Slowing down a lot, or pausing before letting go, settles normally.
 
 A flick moves one workspace (or opens or closes the overview) in the direction you moved. To tune it, turn on **Show gesture progress** under Diagnostics; each release then logs the measured speeds:
 
 ```
-[SolaarWorkspaceGlide] flick no; peak=212 mm/s; release=64 mm/s; backtrack=0.0 counts
+[SolaarWorkspaceGlide] flick yes; peak=120 mm/s; release=76 mm/s; backtrack=0.0 counts
 ```
 
 ## Troubleshooting
