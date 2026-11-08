@@ -190,3 +190,30 @@ test('begin failure restores tracker and gesture flag', () => {
     assert.equal(overview._swipeTracker.enabled, true);
     assert.equal(adjustment.gestureInProgress, false);
 });
+
+test('the settle duration is handed to GNOME for the overview', () => {
+    const {overview, calls} = fixture();
+    const drag = new NativeOverviewDrag(overview);
+    drag.move(-600);
+    drag.finish(true, 0, {duration: (progress, end) => {
+        calls.push(['duration-asked', progress, end]);
+        return 250;
+    }});
+    assert.deepEqual(calls.slice(-2), [['duration-asked', 0.6, 1], ['end', 1, 250]]);
+});
+
+test('an upward flick from the window overview does not reach the app grid', () => {
+    const {overview, calls} = fixture({start: 1});
+    const drag = new NativeOverviewDrag(overview);
+    drag.move(-100);
+    drag.finish(true, 0, {flick: true});
+    assert.deepEqual(calls.at(-1), ['end', 1, 0]);
+});
+
+test('a downward flick from the window overview closes it however short', () => {
+    const {overview, calls} = fixture({start: 1});
+    const drag = new NativeOverviewDrag(overview);
+    drag.move(80);
+    drag.finish(true, 0, {flick: true});
+    assert.deepEqual(calls.at(-1), ['end', 0, 0]);
+});

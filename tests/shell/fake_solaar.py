@@ -27,6 +27,6 @@ for dx, dy in steps:
 pump(pause)
 if ending != "none":
     emit("Ended", "(sb)", (unit, ending == "cancel"))
-pump(0.3)
+pump(float(os.environ.get("FAKE_AFTER", "0.3")))  # seconds to linger after letting go
 if len(sys.argv) > 5 and sys.argv[5] == "hold":
     pump(float(sys.argv[6]))

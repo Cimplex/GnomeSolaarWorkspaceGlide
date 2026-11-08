@@ -24,8 +24,9 @@ status=0
 env -i HOME="$HOME" PATH=/usr/bin:/bin USER="${USER:-tester}" LANG=C.UTF-8 \
     XDG_DATA_HOME="$WORK/data" XDG_CONFIG_HOME="$WORK/config" XDG_CACHE_HOME="$WORK/cache" \
     XDG_STATE_HOME="$WORK/state" XDG_RUNTIME_DIR="$WORK/run" XDG_DATA_DIRS=/usr/local/share:/usr/share \
-    GSETTINGS_BACKEND=dconf SHELL_LOG="$WORK/shell.log" \
+    GSETTINGS_BACKEND=dconf SHELL_LOG="$WORK/shell.log" SCENARIOS="${SCENARIOS:-}" \
     timeout 240 dbus-run-session -- bash "$HERE/session.sh" > "$WORK/results.txt" 2>/dev/null || status=1
+[[ -n "${SCENARIOS:-}" ]] && cat "$WORK/results.txt"
 grep -E '^(PASS|FAIL|RESULT)' "$WORK/results.txt" || { echo "No results; the shell may not have started:"; tail -20 "$WORK/shell.log"; }
 if grep -E 'JS ERROR|JS WARNING' "$WORK/shell.log"; then
     echo "GNOME Shell logged JavaScript errors (above)"

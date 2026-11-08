@@ -170,3 +170,124 @@ test('interrupted native gestures are not finished or updated a second time', ()
     assert.deepEqual(calls, [['begin', 0]]);
     assert.equal(controller._swipeTracker.enabled, true);
 });
+
+function easing(fixtureResult) {
+    const eases = [];
+    const {controller, group} = fixtureResult;
+    group.ease_property = (property, value, params) => eases.push({property, value, params});
+    return {...fixtureResult, eases, controller};
+}
+
+test('with a duration the release eases to the target and finishes when the ease completes', () => {
+    const {controller, calls, eases, group} = easing(fixture());
+    const drag = new NativeDrag(controller, 0);
+    drag.move(-700);
+    let stamp = 0;
+    drag.finish(true, () => ++stamp, {duration: (progress, end) => (end - progress) * 1000, mode: 'ease-out-cubic'});
+    assert.equal(controller._swipeTracker.enabled, true, 'touchpad swipes work again at once');
+    assert.equal(eases.length, 1);
+    assert.equal(eases[0].property, 'progress');
+    assert.equal(eases[0].value, 2);
+    assert.equal(eases[0].params.mode, 'ease-out-cubic');
+    assert.ok(Math.abs(eases[0].params.duration - 300) < 1e-6);
+    assert.equal(group.progress, 1.7, 'not snapped');
+    assert.deepEqual(calls, [['begin', 0]], 'nothing activated or finished yet');
+    eases[0].params.onComplete();
+    assert.deepEqual(calls, [['begin', 0], ['activate', 2, 1], ['finish']]);
+});
+
+test('a zero duration still snaps at once', () => {
+    const {controller, calls, eases} = easing(fixture());
+    const drag = new NativeDrag(controller, 0);
+    drag.move(-700);
+    drag.finish(true, 42, {duration: () => 0});
+    assert.equal(eases.length, 0);
+    assert.deepEqual(calls, [['begin', 0], ['activate', 2, 42], ['finish']]);
+});
+
+test('a cancelled gesture never animates', () => {
+    const {controller, eases, calls} = easing(fixture());
+    const drag = new NativeDrag(controller, 0);
+    drag.move(-700);
+    drag.finish(false, 42, {duration: () => 300});
+    assert.equal(eases.length, 0);
+    assert.deepEqual(calls, [['begin', 0], ['finish']]);
+});
+
+test('a new gesture can take over a settle that is still animating', () => {
+    const {controller, calls, eases, group} = easing(fixture());
+    controller._switchWorkspaceBegin = function (tracker, monitor) {
+        calls.push(['begin', monitor]);
+        if (!this._switchData?.gestureActivated)
+            this._switchData = {baseMonitorGroup: group, monitors: [group]};
+        // GNOME settles a taken-over swipe around where it was heading.
+        tracker.confirmSwipe(1000, [0, 1, 2, 3], group.progress, Math.round(group.progress));
+    };
+    const first = new NativeDrag(controller, 0);
+    first.move(-700);
+    first.finish(true, 1, {duration: () => 300});
+    group.progress = 1.8; // part way through the ease
+    const second = new NativeDrag(controller, 0);
+    assert.equal(second.start, 1.8);
+    assert.equal(second.base, 2);
+    second.move(-50); // a short flick onward
+    second.finish(true, 2, {flick: true, duration: () => 0});
+    assert.deepEqual(calls.slice(-2), [['activate', 3, 2], ['finish']]);
+    assert.equal(eases.length, 1, 'only the first settle animated');
+    eases[0].params.onComplete(); // a removed transition would not call this, but even so:
+    assert.equal(calls.filter(call => call[0] === 'finish').length, 1, 'the old settle does not finish the switch again');
+    assert.equal(calls.filter(call => call[0] === 'activate').length, 1, 'nor activate its old target');
+});
+
+test('a flick at the last workspace stays there', () => {
+    const {controller, calls} = fixture({start: 3});
+    const drag = new NativeDrag(controller, 0);
+    drag.move(-50);
+    drag.finish(true, 7, {flick: true});
+    assert.deepEqual(calls, [['begin', 0], ['finish']]);
+});
+
+test('an old settle completing during the gesture that took it over does nothing', () => {
+    const {controller, calls, eases, group} = easing(fixture());
+    controller._switchWorkspaceBegin = function (tracker, monitor) {
+        calls.push(['begin', monitor]);
+        if (!this._switchData?.gestureActivated)
+            this._switchData = {baseMonitorGroup: group, monitors: [group]};
+        tracker.confirmSwipe(1000, [0, 1, 2, 3], group.progress, Math.round(group.progress));
+    };
+    const first = new NativeDrag(controller, 0);
+    first.move(-700);
+    first.finish(true, 1, {duration: () => 300});
+    const second = new NativeDrag(controller, 0);
+    eases[0].params.onComplete();
+    assert.equal(calls.some(call => call[0] === 'activate' || call[0] === 'finish'), false);
+    second.move(10);
+    assert.equal(controller._switchData, second.data, 'the switch is still live for the new gesture');
+    second.finish(false, 2);
+});
+
+test('a flick taking over before the halfway point still carries on past the old target', () => {
+    const {controller, calls, group} = easing(fixture());
+    controller._switchWorkspaceBegin = function (tracker, monitor) {
+        calls.push(['begin', monitor]);
+        if (!this._switchData?.gestureActivated)
+            this._switchData = {baseMonitorGroup: group, monitors: [group]};
+        tracker.confirmSwipe(1000, [0, 1, 2, 3], group.progress, Math.round(group.progress));
+    };
+    const first = new NativeDrag(controller, 0);
+    first.move(-300);
+    first.finish(true, 1, {flick: true, duration: () => 400}); // heading for 2
+    group.progress = 1.4; // GNOME would call 1 the nearest
+    const second = new NativeDrag(controller, 0);
+    assert.equal(second.base, 2);
+    second.move(-200);
+    second.finish(true, 2, {flick: true, duration: () => 0});
+    assert.deepEqual(calls.slice(-2), [['activate', 3, 2], ['finish']]);
+});
+
+test('without a settle in flight the base is the nearest workspace', () => {
+    const {controller} = fixture();
+    const drag = new NativeDrag(controller, 0);
+    assert.equal(drag.base, 1);
+    drag.finish(false, 0);
+});

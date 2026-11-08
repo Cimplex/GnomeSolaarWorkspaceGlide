@@ -74,17 +74,26 @@ export class NativeOverviewDrag {
         return this.progress;
     }
 
-    // settle: {threshold, flick} for settleTarget; the default switches past halfway.
+    // settle: {threshold, flick} for settleTarget, plus
+    //   duration(progress, endProgress) → ms for the settle animation.
     finish(commit, _timestamp, settle = {}) {
         if (!this.active)
             return;
         this.active = false;
-        const target = commit ? settleTarget(this.start, this.progress, settle) : this.start;
+        let target = this.start;
+        let duration = 0;
+        if (commit) {
+            const direction = Math.sign(this.progress - this.start);
+            // Never past the window overview into the app grid.
+            target = Math.min(Math.max(1, this.start), Math.max(0,
+                settleTarget(this.start, this.progress, {...settle, direction})));
+            duration = settle.duration?.(this.progress, target) ?? 0;
+        }
         try {
             if (this.presented) {
                 // Native completion manages shown/hidden state and its modal
-                // grab. Duration zero preserves the user's 0x release behavior.
-                this.overview._gestureEnd(null, 0, target);
+                // grab, and eases to the target like a touchpad release.
+                this.overview._gestureEnd(null, duration, target);
             } else {
                 // No positive progress: overview never emitted showing. Calling
                 // the outer end would request an illegal HIDDEN -> HIDING state.

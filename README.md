@@ -93,10 +93,12 @@ A button can do only one thing at a time, so it no longer runs Solaar's Mouse Ge
 
 - **Hold and move left or right:** slide between workspaces.
 - **Hold and move up:** open the overview. **Move down** from the overview to close it.
-- **Let go:** settle on the nearest workspace or view.
+- **Let go:** settle on the nearest workspace or view. With animations on, it eases into place like a touchpad swipe: quickly if you were still moving, gently if you had stopped.
 - **Escape** (or another click) while gliding: cancel and go back to where you started.
 
 Each hold picks its direction once it has moved a little (the dead zone), so a sideways glide never turns into the overview halfway through.
+
+You can start the next glide before the last one has finished settling; it picks up from where the slide is.
 
 ## Settings
 

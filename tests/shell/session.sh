@@ -8,7 +8,7 @@ gsettings set org.gnome.shell enabled-extensions "['solaar-workspace-glide@cimpl
 gsettings set org.gnome.shell welcome-dialog-last-shown-version '999'
 gsettings set org.gnome.mutter dynamic-workspaces false
 gsettings set org.gnome.desktop.wm.preferences num-workspaces 4
-gsettings set org.gnome.desktop.interface enable-animations false
+gsettings set org.gnome.desktop.interface enable-animations true   # the default; some checks turn it off
 gsettings --schemadir "$SCHEMAS" set org.gnome.shell.extensions.solaar-workspace-glide debug-progress true
 
 gnome-shell --headless --wayland --no-x11 --virtual-monitor 1280x800 > "$SHELL_LOG" 2>&1 &
@@ -20,7 +20,7 @@ for _ in $(seq 1 150); do
 done
 ev "Main.overview.hide()" >/dev/null   # the shell starts in the overview, like a fresh login
 sleep 1
-source "$HERE/scenarios.sh"
+source "${SCENARIOS:-$HERE/scenarios.sh}"
 kill "$SHELL_PID"; wait "$SHELL_PID" 2>/dev/null
 # The shell may have started the document portal, which mounts a FUSE file system here.
 fusermount3 -u "$XDG_RUNTIME_DIR/doc" 2>/dev/null || fusermount -u "$XDG_RUNTIME_DIR/doc" 2>/dev/null || true

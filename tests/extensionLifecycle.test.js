@@ -5,11 +5,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {GestureTracker, buttonId} from '../extension/gesture.js';
+import {recentVelocity, settleDuration} from '../extension/motion.js';
 import {PointerHold} from '../extension/pointerHold.js';
 
 let moduleSerial = 0;
 async function fixture({delay = 350, barrierFails = false} = {}) {
     const trace = [];
+    const clock = {now: 0};
     const timers = new Map();
     const laters = [];
     let stageHandler = null;
@@ -49,7 +51,7 @@ async function fixture({delay = 350, barrierFails = false} = {}) {
         overview: {visible: false, animationInProgress: false},
         actionMode: 1,
         layoutManager: {primaryMonitor: {index: 0, x: 0, y: 0, width: 2000}},
-        wm: {_workspaceAnimation: {}},
+        wm: {_workspaceAnimation: {_switchData: null}},
         uiGroup: {add_child() {}},
         pushModal: () => ({is_revoked: () => false}),
         popModal() {},
@@ -57,12 +59,12 @@ async function fixture({delay = 350, barrierFails = false} = {}) {
     };
     const context = {
         Main,
-        GLib: {PRIORITY_DEFAULT: 0, SOURCE_REMOVE: false, timeout_add: (_p, ms, fn) => schedule(ms, fn), source_remove: cancelTimer,
+        GLib: {PRIORITY_DEFAULT: 0, SOURCE_REMOVE: false, get_monotonic_time: () => clock.now * 1000, timeout_add: (_p, ms, fn) => schedule(ms, fn), source_remove: cancelTimer,
             get_home_dir: () => '/home/demo', build_filenamev: parts => parts.join('/')},
         Shell: {ActionMode: {NORMAL: 1, OVERVIEW: 2, NONE: 0}},
         Clutter: {TextDirection: {RTL: 1}, get_default_text_direction: () => 0,
             EventType: {KEY_PRESS: 1, BUTTON_PRESS: 2, MOTION: 3, BUTTON_RELEASE: 4}, KEY_Escape: 0xff1b,
-            EVENT_STOP: true},
+            EVENT_STOP: true, AnimationMode: {EASE_OUT_CUBIC: 'ease-out-cubic'}},
         Meta: {LaterType: {BEFORE_REDRAW: 0}},
         St: {
             Label: class {
@@ -79,6 +81,8 @@ async function fixture({delay = 350, barrierFails = false} = {}) {
         PointerHold,
         GestureTracker,
         buttonId,
+        recentVelocity,
+        settleDuration,
         global: {
             compositor: {get_laters: () => ({
                 add: (_type, callback) => {
@@ -95,6 +99,7 @@ async function fixture({delay = 350, barrierFails = false} = {}) {
                 stageHandler = null;
             }},
             get_pointer: () => [100, 200],
+            display: {get_current_time_roundtrip: () => 777},
             get_current_time: () => 1,
         },
         console: {log() {}, error: message => trace.push(['error', message])},
@@ -102,7 +107,7 @@ async function fixture({delay = 350, barrierFails = false} = {}) {
     const source = (await readFile(new URL('../extension/extension.js', import.meta.url), 'utf8'))
         .replace(/^import .*;\n/gm, '');
     globalThis.__workspaceGlideFixture = context;
-    const prefix = `const {Main, GLib, Meta, Shell, Clutter, St, Extension, NativeDrag, NativeOverviewDrag, PointerHold, GestureTracker, buttonId, global, console} = globalThis.__workspaceGlideFixture;\n`;
+    const prefix = `const {Main, GLib, Meta, Shell, Clutter, St, Extension, NativeDrag, NativeOverviewDrag, PointerHold, GestureTracker, buttonId, recentVelocity, settleDuration, global, console} = globalThis.__workspaceGlideFixture;\n`;
     let Class;
     try {
         ({default: Class} = await import(`data:text/javascript;base64,${Buffer.from(prefix + source + `\n// fixture ${++moduleSerial}`).toString('base64')}`));
@@ -125,13 +130,12 @@ async function fixture({delay = 350, barrierFails = false} = {}) {
         requestFlush: () => extension._requestFlush(),
         now: () => clock.now,
     });
-    const clock = {now: 0};
     const frame = () => {
         for (const callback of laters.splice(0))
             callback();
     };
     const key = symbol => stageHandler?.(null, {type: () => 1, get_key_symbol: () => symbol});
-    return {extension, trace, timers, frame, key, clock, tracker: extension._tracker};
+    return {extension, trace, timers, frame, key, clock, Main, tracker: extension._tracker};
 }
 
 const moves = trace => trace.filter(entry => Array.isArray(entry) && entry[0] === 'move');
@@ -309,7 +313,8 @@ test('Solaar leaving mid-hold cancels the gesture', async () => {
     assert.equal(extension._drag, null);
 });
 
-const settles = trace => trace.filter(entry => Array.isArray(entry) && entry[0] === 'settle').map(entry => entry[1]);
+const settles = trace => trace.filter(entry => Array.isArray(entry) && entry[0] === 'settle')
+    .map(([, {threshold, flick}]) => ({threshold, flick}));
 
 test('the switch point chosen when the gesture starts is used to settle it', async () => {
     const {extension, trace, tracker} = await fixture({delay: 0});
@@ -333,4 +338,44 @@ test('a flick is passed to the drag when enabled', async () => {
     clock.now += 2;
     tracker.ended('A', false);
     assert.deepEqual(settles(trace), [{threshold: 0.5, flick: true}]);
+});
+
+test('the release is animated with a duration from the release speed', async () => {
+    const {extension, trace, tracker, clock, frame} = await fixture({delay: 0});
+    tracker.started('A', 416);
+    clock.now += 16;
+    tracker.moved('A', -40, 0);
+    // Let progress follow the movement: 0.1 per report, every 16 ms.
+    extension._drag.move = x => (extension._drag.progress = -x / 400);
+    frame();
+    for (let i = 0; i < 5; i++) {
+        clock.now += 16;
+        tracker.moved('A', -40, 0);
+        frame();
+    }
+    tracker.ended('A', false);
+    const [, settle] = trace.find(entry => Array.isArray(entry) && entry[0] === 'settle');
+    assert.equal(settle.mode, 'ease-out-cubic');
+    const quick = settle.duration(0.6, 1);
+    assert.ok(quick >= 100 && quick < 400, `moving release settles quickly: ${quick}`);
+    assert.equal(settle.duration(1, 1), 0);
+});
+
+test('a hold while a non-gesture workspace switch animates is declined quietly', async () => {
+    const {extension, trace, tracker, Main} = await fixture({delay: 0});
+    Main.wm._workspaceAnimation._switchData = {gestureActivated: false}; // e.g. a keyboard switch
+    tracker.started('A', 416);
+    tracker.moved('A', -50, 0);
+    assert.equal(extension._drag, null);
+    assert.equal(tracker.state, 'rejected');
+    assert.equal(trace.some(entry => Array.isArray(entry) && entry[0] === 'notify'), false);
+});
+
+test('a hold while a glide is still settling takes it over', async () => {
+    const {extension, tracker, Main} = await fixture({delay: 0});
+    Main.wm._workspaceAnimation._switchData = {gestureActivated: true};
+    tracker.started('A', 416);
+    tracker.moved('A', -50, 0);
+    assert.equal(extension._kind, 'horizontal');
+    extension._stop(false);
 });

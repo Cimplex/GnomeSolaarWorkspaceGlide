@@ -8,6 +8,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {GestureTracker, buttonId} from './gesture.js';
+import {recentVelocity, settleDuration} from './motion.js';
 import {MovementStream} from './movementStream.js';
 import {NativeDrag} from './nativeDrag.js';
 import {NativeOverviewDrag} from './nativeOverviewDrag.js';
@@ -234,6 +235,11 @@ export default class SolaarWorkspaceGlide extends Extension {
             return this._decline(kind, 'Workspace gliding needs workspaces laid out horizontally.', true);
         if (!overview && global.workspace_manager.n_workspaces < 2)
             return this._decline(kind, 'Create a second workspace first.', true);
+        // A settling swipe can be taken over (rapid flicks); a keyboard or
+        // other switch animation cannot, and it is over in a moment.
+        const switching = Main.wm._workspaceAnimation._switchData;
+        if (switching && (overview || !switching.gestureActivated))
+            return this._decline(kind, 'a workspace switch is animating', mode === 'pointer');
 
         try {
             this._pointerHold.clear();
@@ -246,6 +252,7 @@ export default class SolaarWorkspaceGlide extends Extension {
             this._gestureNaturalDirection = this._naturalDirection;
             this._gestureSwitchThreshold = this._switchThreshold;
             this._updateCount = 0;
+            this._progressSamples = [];
             this._lastInput = [0, 0];
             this._drag = overview
                 ? new NativeOverviewDrag(Main.overview)
@@ -302,6 +309,7 @@ export default class SolaarWorkspaceGlide extends Extension {
             : this._drag.move(x, rtl, this._gestureSensitivity, this._gestureAcceleration, this._gestureNaturalDirection);
         this._updateCount++;
         this._lastInput = [x, y];
+        this._progressSamples.push({time: GLib.get_monotonic_time() / 1000, progress});
         if (this._debugProgress && this._updateCount === 1)
             console.log(`${LOG} first update; mode=${this._mode}; kind=${this._kind}; x=${x}; y=${y}; progress=${progress}`);
         if (overview && this._drag.presented && !this._grab)
@@ -363,8 +371,20 @@ export default class SolaarWorkspaceGlide extends Extension {
                 if (this._drag) {
                     if (this._debugProgress)
                         console.log(`${LOG} ${commit ? 'commit' : 'cancel'}; mode=${this._mode}; kind=${this._kind}; updates=${this._updateCount}; lastInput=${this._lastInput}; progress=${this._drag.progress}; flick=${flick}`);
-                    this._drag.finish(commit, global.get_current_time(),
-                        {threshold: this._gestureSwitchThreshold ?? 0.5, flick});
+                    // Settle like a touchpad release: an animation whose length
+                    // follows the release speed (instant with animations off).
+                    const velocity = recentVelocity(this._progressSamples ?? [], GLib.get_monotonic_time() / 1000);
+                    this._drag.finish(commit, () => global.display.get_current_time_roundtrip(), {
+                        threshold: this._gestureSwitchThreshold ?? 0.5,
+                        flick,
+                        mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                        duration: (progress, end) => {
+                            const ms = settleDuration(progress, end, velocity);
+                            if (this._debugProgress)
+                                console.log(`${LOG} settle ${progress.toFixed(3)} → ${end} in ${Math.round(ms)} ms (velocity ${(velocity * 1000).toFixed(2)}/s)`);
+                            return ms;
+                        },
+                    });
                 }
             } finally {
                 this._drag = null;
