@@ -106,11 +106,26 @@ Each hold picks its direction once it has moved a little (the dead zone), so a s
 | Sensitivity | 3× | How far the view moves for a given mouse movement |
 | Acceleration | 1 (Medium) | Larger movements travel progressively further; 0 turns it off |
 | Dead zone | 8 | Movement, in counts at 1000 DPI, before a hold picks sideways or up/down |
+| Switch point | 50% | How far through the slide you must be when you let go to switch; less settles back |
 | Workspace direction | Standard | Standard: the view follows the mouse. Natural: it moves the other way |
 | Pointer release delay | 350 ms | Keeps the pointer still briefly after letting go so it does not jump; 0 turns it off |
 | Show gesture progress | Off | On-screen progress badge and detailed logs (Diagnostics page) |
 
 Movement is reported at 1000 DPI whatever your mouse's DPI setting, so gliding feels the same if you change DPI.
+
+### Experimental: flick to switch
+
+With **Flick to switch** on (Gestures page, Experimental), a quick movement switches even if it went less than the switch point. It counts as a flick when all of these are true:
+
+- it reached the **flick speed** (150 mm/s by default),
+- it never turned back,
+- after its fastest moment it kept at least the **keep speed** share of that speed (50% by default) until you let go. Slowing down a lot, or pausing before letting go, settles normally.
+
+A flick moves one workspace (or opens or closes the overview) in the direction you moved. To tune it, turn on **Show gesture progress** under Diagnostics; each release then logs the measured speeds:
+
+```
+[SolaarWorkspaceGlide] flick no; peak=212 mm/s; release=64 mm/s; backtrack=0.0 counts
+```
 
 ## Troubleshooting
 

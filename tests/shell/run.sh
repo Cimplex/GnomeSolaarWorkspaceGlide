@@ -31,4 +31,8 @@ if grep -E 'JS ERROR|JS WARNING' "$WORK/shell.log"; then
     echo "GNOME Shell logged JavaScript errors (above)"
     status=1
 fi
+if [[ $status -ne 0 ]]; then
+    echo "--- last extension log lines:"
+    grep 'SolaarWorkspaceGlide' "$WORK/shell.log" | grep -v 'session bus' | tail -${LOG_LINES:-40}
+fi
 exit "$status"

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {GestureTracker, buttonId, classify} from '../extension/gesture.js';
+import {COUNTS_PER_MM, FlickDetector, GestureTracker, buttonId, classify} from '../extension/gesture.js';
 
 function fixture({accept = true, acceptBegin = true, acceptUpdate = true, accepts} = {}) {
     const calls = [];
@@ -177,4 +177,124 @@ test('an end hook that throws still leaves the tracker idle', () => {
     tracker.moved('A', 20, 0);
     assert.throws(() => tracker.ended('A', false), /boom/);
     assert.equal(tracker.state, 'idle');
+});
+
+// mm/s → counts per 8 ms report at 1000 DPI
+const perReport = mmPerSecond => mmPerSecond * COUNTS_PER_MM * 8 / 1000;
+const FLICK = {minSpeed: 150, keepRatio: 0.5};
+
+function feed(detector, speedsMmPerSecond, {start = 0, sign = 1} = {}) {
+    let time = start, position = 0;
+    for (const speed of speedsMmPerSecond) {
+        time += 8;
+        position += sign * perReport(speed);
+        detector.add(time, position);
+    }
+    return time;
+}
+
+test('a quick movement that is still fast at release is a flick', () => {
+    const detector = new FlickDetector();
+    const end = feed(detector, [100, 200, 300, 300, 280, 260, 250]);
+    const result = detector.judge(end + 2, FLICK);
+    assert.equal(result.flick, true);
+    assert.ok(result.peak > 250 && result.peak < 310, `peak ${result.peak}`);
+    assert.ok(result.release > 150);
+});
+
+test('flicks work in either direction', () => {
+    const detector = new FlickDetector();
+    const end = feed(detector, [200, 300, 300, 280], {sign: -1});
+    assert.equal(detector.judge(end + 2, FLICK).flick, true);
+});
+
+test('a slow steady drag is not a flick', () => {
+    const detector = new FlickDetector();
+    const end = feed(detector, Array(30).fill(60));
+    const result = detector.judge(end + 2, FLICK);
+    assert.equal(result.flick, false);
+    assert.ok(Math.abs(result.peak - 60) < 2, `peak ${result.peak}`);
+});
+
+test('stopping before letting go is not a flick', () => {
+    const detector = new FlickDetector();
+    const end = feed(detector, [200, 300, 300, 300]);
+    assert.equal(detector.judge(end + 200, FLICK).flick, false, 'paused 200 ms before release');
+    assert.equal(detector.judge(end + 2, FLICK).flick, true, 'same movement released at once');
+});
+
+test('slowing down a lot after the fastest moment is not a flick', () => {
+    const detector = new FlickDetector();
+    const end = feed(detector, [300, 300, 300, 300, 300, 300, 300, 80, 80, 80, 80, 80, 80, 80, 300]);
+    assert.equal(detector.judge(end + 2, FLICK).flick, false);
+});
+
+test('changing direction is not a flick, but a little jitter is', () => {
+    const reversed = new FlickDetector();
+    let end = feed(reversed, [300, 300, 300, 300]);
+    end = feed(reversed, [300, 300], {start: end, sign: -1});
+    // continue forward from where the reversal left off
+    const backAt = reversed._samples.at(-1).position;
+    for (let i = 1; i <= 8; i++)
+        reversed.add(end + i * 8, backAt + i * perReport(300));
+    assert.equal(reversed.judge(end + 66, FLICK).flick, false);
+    assert.ok(reversed.judge(end + 66, FLICK).backtrack > 20);
+
+    const jitter = new FlickDetector();
+    const times = [8, 16, 24, 32, 40, 48, 56];
+    const positions = [8, 20, 18, 35, 52, 70, 88]; // 2 counts back at one report
+    times.forEach((t, i) => jitter.add(t, positions[i]));
+    assert.equal(jitter.judge(58, {minSpeed: 30, keepRatio: 0.5}).flick, true); // peaks near 41 mm/s
+});
+
+test('the tracker reports a flick to the end hook only when enabled and not cancelled', () => {
+    let time = 0;
+    const ends = [];
+    const tracker = new GestureTracker({
+        begin: () => true, update: () => true,
+        end: (commit, info) => ends.push([commit, info.flick]),
+        now: () => time,
+    });
+    const hold = ({cancel = false} = {}) => {
+        tracker.started('A', 416);
+        for (const speed of [200, 300, 300, 280]) {
+            time += 8;
+            tracker.moved('A', -perReport(speed), 0);
+        }
+        time += 2;
+        tracker.ended('A', cancel);
+    };
+    hold();
+    tracker.flick = {...tracker.flick, enabled: true};
+    hold();
+    hold({cancel: true});
+    assert.deepEqual(ends, [[true, false], [true, true], [false, false]]);
+    assert.equal(tracker.lastFlick.flick, true);
+});
+
+test('an overview hold is judged on vertical movement', () => {
+    let time = 0;
+    const ends = [];
+    const tracker = new GestureTracker({
+        begin: () => true, update: () => true,
+        end: (commit, info) => ends.push(info.flick), now: () => time,
+    });
+    tracker.flick = {enabled: true, minSpeed: 150, keepRatio: 0.5};
+    tracker.started('A', 416);
+    for (const speed of [200, 300, 300, 280]) {
+        time += 8;
+        tracker.moved('A', perReport(20), -perReport(speed));
+    }
+    tracker.ended('A', false);
+    assert.deepEqual(ends, [true]);
+});
+
+test('movement arriving right after the press is not mistaken for a burst of speed', () => {
+    const detector = new FlickDetector(0);
+    detector.add(1, 15); // first report 1 ms after the press
+    for (let t = 9; t <= 41; t += 8)
+        detector.add(t, 15 + (t - 1) / 8 * 15);
+    const result = detector.judge(43, {minSpeed: 30, keepRatio: 0.5});
+    assert.ok(result.peak < 60, `peak ${result.peak} should be near 48 mm/s`);
+    assert.equal(result.flick, true);
 });

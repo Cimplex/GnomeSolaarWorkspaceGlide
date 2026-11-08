@@ -1,4 +1,4 @@
-import {acceleratedOffset} from './motion.js';
+import {acceleratedOffset, settleTarget} from './motion.js';
 
 // Uses the same lifecycle as Overview's native touchpad swipe on GNOME 50.
 // The outer Overview methods manage visibility/grabs/cover pane; controls alone
@@ -74,11 +74,12 @@ export class NativeOverviewDrag {
         return this.progress;
     }
 
-    finish(commit) {
+    // settle: {threshold, flick} for settleTarget; the default switches past halfway.
+    finish(commit, _timestamp, settle = {}) {
         if (!this.active)
             return;
         this.active = false;
-        const target = commit ? Math.round(this.progress) : this.start;
+        const target = commit ? settleTarget(this.start, this.progress, settle) : this.start;
         try {
             if (this.presented) {
                 // Native completion manages shown/hidden state and its modal

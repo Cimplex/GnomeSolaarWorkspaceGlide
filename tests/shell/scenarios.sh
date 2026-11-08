@@ -32,4 +32,21 @@ check "seen buttons recorded" "['MX:416', 'MX:195']" "$(gsettings --schemadir "$
 ev "(async () => { await Main.extensionManager.disableExtension('solaar-workspace-glide@cimplex'); await Main.extensionManager.enableExtension('solaar-workspace-glide@cimplex'); return true; })()" >/dev/null; sleep 0.5
 check "extension state after disable/enable" 1 "$(ev "Main.extensionManager.lookup('solaar-workspace-glide@cimplex').state" | grep -o "'[0-9]*'" | tr -d "'")"
 $F MX 416 "$PREV" release;               check "glides after re-enable" 0 "$(ws)"
+
+# Switch point and flicks. SHORT moves about a quarter of the way to the next workspace.
+SHORT="$(rep -15,0 6)"
+$F MX 416 "$SHORT" release;              check "short move stays at the default 50% switch point" 0 "$(ws)"
+gx set switch-threshold-percent 20
+$F MX 416 "$SHORT" release;              check "short move switches at a 20% switch point" 1 "$(ws)"
+gx set switch-threshold-percent 50
+gx set flick-min-speed 30
+gx set flick-keep-percent 30
+gx set flick-enabled true
+FAKE_PAUSE=0 $F MX 416 "$SHORT" release; check "quick short move released at speed is a flick" 2 "$(ws)"
+FAKE_PAUSE=0.3 $F MX 416 "$SHORT" release; check "same move with a pause before letting go is not" 2 "$(ws)"
+FAKE_PAUSE=0 $F MX 416 "$(rep -15,0 4);$(rep 15,0 2);$(rep -15,0 2)" release; check "a move that turns back is not a flick" 2 "$(ws)"
+FAKE_PAUSE=0 FAKE_INTERVAL=0.05 $F MX 416 "$(rep -15,0 6)" release; check "a slow move is not a flick" 2 "$(ws)"
+FAKE_PAUSE=0 $F MX 416 "$(rep 0,-15 6)" release; check "an upward flick opens the overview" true "$(ov)"
+FAKE_PAUSE=0 $F MX 416 "$(rep 0,15 6)" release;  check "a downward flick closes it" false "$(ov)"
+gx set flick-enabled false
 echo "RESULT: $pass passed, $fail failed"

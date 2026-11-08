@@ -1,5 +1,5 @@
 """Pretend to be Solaar with Movement Stream: own the bus name and emit signals."""
-import sys, time
+import os, sys, time
 from gi.repository import Gio, GLib
 
 bus = Gio.bus_get_sync(Gio.BusType.SESSION)
@@ -20,9 +20,11 @@ unit, control = sys.argv[1], int(sys.argv[2])
 steps = [tuple(map(float, s.split(","))) for s in sys.argv[3].split(";")] if sys.argv[3] else []
 ending = sys.argv[4]  # release | cancel | none
 emit("Started", "(sq)", (unit, control))
+interval = float(os.environ.get("FAKE_INTERVAL", "0.008"))  # seconds between movement reports
+pause = float(os.environ.get("FAKE_PAUSE", "0.2"))  # seconds still before letting go
 for dx, dy in steps:
-    emit("Moved", "(sdd)", (unit, dx, dy)); pump(0.008)
-pump(0.2)
+    emit("Moved", "(sdd)", (unit, dx, dy)); pump(interval)
+pump(pause)
 if ending != "none":
     emit("Ended", "(sb)", (unit, ending == "cancel"))
 pump(0.3)

@@ -16,6 +16,25 @@
       <range min="2.0" max="100.0"/>
       <summary>Movement, in counts at 1000 DPI, before a hold picks horizontal or overview</summary>
     </key>
+    <key name="switch-threshold-percent" type="u">
+      <default>50</default>
+      <range min="10" max="90"/>
+      <summary>How far, in percent of a step, a released gesture must have gone to switch</summary>
+    </key>
+    <key name="flick-enabled" type="b">
+      <default>false</default>
+      <summary>Experimental: a quick movement that is still fast at release switches however far it went</summary>
+    </key>
+    <key name="flick-min-speed" type="u">
+      <default>150</default>
+      <range min="20" max="2000"/>
+      <summary>Speed, in millimetres per second, a movement must reach to count as a flick</summary>
+    </key>
+    <key name="flick-keep-percent" type="u">
+      <default>50</default>
+      <range min="10" max="100"/>
+      <summary>After its fastest moment, a flick must keep at least this percent of that speed until release</summary>
+    </key>
     <key name="natural-workspace-direction" type="b">
       <default>false</default>
       <summary>Reverse the horizontal workspace slide relative to mouse movement</summary>

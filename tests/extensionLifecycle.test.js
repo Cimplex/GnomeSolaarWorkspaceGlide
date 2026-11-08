@@ -40,7 +40,10 @@ async function fixture({delay = 350, barrierFails = false} = {}) {
             this.presented = true;
             return this.progress = 0.6;
         }
-        finish(commit) { trace.push(['finish', commit]); }
+        finish(commit, _timestamp, settle) {
+            trace.push(['finish', commit]);
+            trace.push(['settle', settle]);
+        }
     }
     const Main = {
         overview: {visible: false, animationInProgress: false},
@@ -111,22 +114,24 @@ async function fixture({delay = 350, barrierFails = false} = {}) {
         _pointerHold: hold, _sensitivity: 3, _acceleration: 1,
         _releaseDelay: delay, _naturalDirection: false,
         _debugProgress: false, _listenAll: true, _selected: new Set(),
-        _drag: null, _mode: null, _kind: null, _laterId: 0,
+        _drag: null, _mode: null, _kind: null, _laterId: 0, _switchThreshold: 0.5,
     });
     // The same wiring as enable(), without the D-Bus and settings parts.
     extension._tracker = new GestureTracker({
         accepts: (unitId, control) => extension._acceptsButton(unitId, control),
         begin: kind => extension._arm('stream', kind),
         update: (x, y) => extension._streamUpdate(x, y),
-        end: commit => extension._stop(commit, true),
+        end: (commit, {flick = false} = {}) => extension._streamEnd(commit, flick),
         requestFlush: () => extension._requestFlush(),
+        now: () => clock.now,
     });
+    const clock = {now: 0};
     const frame = () => {
         for (const callback of laters.splice(0))
             callback();
     };
     const key = symbol => stageHandler?.(null, {type: () => 1, get_key_symbol: () => symbol});
-    return {extension, trace, timers, frame, key, tracker: extension._tracker};
+    return {extension, trace, timers, frame, key, clock, tracker: extension._tracker};
 }
 
 const moves = trace => trace.filter(entry => Array.isArray(entry) && entry[0] === 'move');
@@ -302,4 +307,30 @@ test('Solaar leaving mid-hold cancels the gesture', async () => {
     tracker.reset();
     assert.deepEqual(finishes(trace), [['finish', false]]);
     assert.equal(extension._drag, null);
+});
+
+const settles = trace => trace.filter(entry => Array.isArray(entry) && entry[0] === 'settle').map(entry => entry[1]);
+
+test('the switch point chosen when the gesture starts is used to settle it', async () => {
+    const {extension, trace, tracker} = await fixture({delay: 0});
+    extension._switchThreshold = 0.3;
+    tracker.started('A', 416);
+    tracker.moved('A', 50, 0);
+    extension._switchThreshold = 0.8;
+    tracker.ended('A', false);
+    assert.deepEqual(settles(trace), [{threshold: 0.3, flick: false}]);
+});
+
+test('a flick is passed to the drag when enabled', async () => {
+    const {extension, trace, tracker, clock} = await fixture({delay: 0});
+    extension._debugProgress = false;
+    tracker.flick = {enabled: true, minSpeed: 150, keepRatio: 0.5};
+    tracker.started('A', 416);
+    for (let i = 0; i < 5; i++) {
+        clock.now += 8;
+        tracker.moved('A', -95, 0); // about 300 mm/s
+    }
+    clock.now += 2;
+    tracker.ended('A', false);
+    assert.deepEqual(settles(trace), [{threshold: 0.5, flick: true}]);
 });

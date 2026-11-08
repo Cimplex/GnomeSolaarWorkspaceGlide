@@ -411,6 +411,9 @@ export default class SolaarWorkspaceGlidePreferences extends ExtensionPreference
             '0 is Off · 0.5 Gentle · 1 Medium · 2 Strong', 0, 3, 0.25, 2);
         this._spin(motion, settings, 'direction-threshold', 'Dead zone',
             'How far to move, in counts at 1000 DPI, before the gesture picks sideways or up/down.', 2, 100, 1, 0);
+        this._spin(motion, settings, 'switch-threshold-percent', 'Switch point',
+            'How far through the slide, in percent, you must be when you let go to switch. Less than that settles back.',
+            10, 90, 5, 0);
 
         const direction = new Adw.ComboRow({
             title: 'Workspace direction',
@@ -433,6 +436,29 @@ export default class SolaarWorkspaceGlidePreferences extends ExtensionPreference
         this._spin(release, settings, 'release-deadtime-ms', 'Pointer release delay',
             'Milliseconds to keep the pointer still after letting go, so it does not jump. Affects every pointing device. 0 turns it off.',
             0, 2000, 50, 0);
+
+        const experimental = new Adw.PreferencesGroup({
+            title: 'Experimental',
+            description: 'Try these out; they may change. Turn on "Show gesture progress" under Diagnostics ' +
+                'to log the measured speeds while tuning.',
+        });
+        page.add(experimental);
+        const flick = new Adw.SwitchRow({
+            title: 'Flick to switch',
+            subtitle: 'A quick movement that never turns back and is still fast when you let go switches, ' +
+                'however short it was.',
+        });
+        settings.bind('flick-enabled', flick, 'active', Gio.SettingsBindFlags.DEFAULT);
+        experimental.add(flick);
+        const flickRows = [
+            this._spin(experimental, settings, 'flick-min-speed', 'Flick speed',
+                'How fast, in millimetres per second, the mouse must move to count as a flick.', 20, 2000, 10, 0),
+            this._spin(experimental, settings, 'flick-keep-percent', 'Keep speed',
+                'After its fastest moment, a flick must keep at least this percent of that speed until you let go. ' +
+                'Slowing down more than that, or pausing, settles normally.', 10, 100, 5, 0),
+        ];
+        for (const row of flickRows)
+            settings.bind('flick-enabled', row, 'sensitive', Gio.SettingsBindFlags.GET);
         return page;
     }
 
@@ -471,6 +497,7 @@ export default class SolaarWorkspaceGlidePreferences extends ExtensionPreference
         });
         settings.bind(key, row, 'value', Gio.SettingsBindFlags.DEFAULT);
         group.add(row);
+        return row;
     }
 
     _action(group, title, subtitle, label, callback) {

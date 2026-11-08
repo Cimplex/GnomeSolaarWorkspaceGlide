@@ -1,6 +1,6 @@
 // Adapter for GNOME Shell 50's WorkspaceAnimationController.
 // No GI imports: the lifecycle can also be exercised outside GNOME Shell.
-import {acceleratedOffset} from './motion.js';
+import {acceleratedOffset, settleTarget} from './motion.js';
 
 export class NativeDrag {
     constructor(controller, monitorIndex) {
@@ -50,13 +50,15 @@ export class NativeDrag {
         return this.progress;
     }
 
-    finish(commit, timestamp) {
+    // settle: {threshold, flick} for settleTarget; the default switches past halfway.
+    finish(commit, timestamp, settle = {}) {
         try {
             if (!this.data || this.controller._switchData !== this.data)
                 return;
             try {
                 if (commit) {
-                    const target = this.data.baseMonitorGroup.findClosestWorkspace(this.progress);
+                    const target = this.data.baseMonitorGroup.findClosestWorkspace(
+                        settleTarget(this.start, this.progress, settle));
                     // Instant release snap, appropriate for animations at 0x.
                     for (const group of this.data.monitors)
                         group.progress = group.getWorkspaceProgress(target);

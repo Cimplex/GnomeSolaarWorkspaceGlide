@@ -49,9 +49,11 @@ export default class SolaarWorkspaceGlide extends Extension {
             accepts: (unitId, control) => this._acceptsButton(unitId, control),
             begin: kind => this._arm('stream', kind),
             update: (x, y) => this._streamUpdate(x, y),
-            end: commit => this._stop(commit, true),
+            end: (commit, {flick = false} = {}) => this._streamEnd(commit, flick),
             requestFlush: () => this._requestFlush(),
+            now: () => GLib.get_monotonic_time() / 1000,
         });
+        this._syncFlick();
         this._stream = new MovementStream({
             onStarted: (unitId, control) => {
                 this._rememberButton(unitId, control);
@@ -102,14 +104,34 @@ export default class SolaarWorkspaceGlide extends Extension {
         this._sensitivity = this._settings.get_double('sensitivity');
         this._acceleration = this._settings.get_double('acceleration');
         this._threshold = this._settings.get_double('direction-threshold');
+        this._switchThreshold = this._settings.get_uint('switch-threshold-percent') / 100;
         this._releaseDelay = this._settings.get_uint('release-deadtime-ms');
         this._naturalDirection = this._settings.get_boolean('natural-workspace-direction');
         this._listenAll = this._settings.get_boolean('listen-all-buttons');
         this._selected = new Set(this._settings.get_strv('selected-buttons'));
         this._debugProgress = this._settings.get_boolean('debug-progress');
-        if (this._tracker)
+        if (this._tracker) {
             this._tracker.threshold = this._threshold;
+            this._syncFlick();
+        }
         this._refreshProgressLabel();
+    }
+
+    _syncFlick() {
+        this._tracker.flick = {
+            enabled: this._settings.get_boolean('flick-enabled'),
+            minSpeed: this._settings.get_uint('flick-min-speed'),
+            keepRatio: this._settings.get_uint('flick-keep-percent') / 100,
+        };
+    }
+
+    _streamEnd(commit, flick) {
+        const judged = this._tracker?.lastFlick;
+        if (this._debugProgress && commit && this._tracker?.flick.enabled && judged) {
+            console.log(`${LOG} flick ${judged.flick ? 'yes' : 'no'}; peak=${judged.peak.toFixed(0)} mm/s; ` +
+                `release=${judged.release.toFixed(0)} mm/s; backtrack=${judged.backtrack.toFixed(1)} counts`);
+        }
+        this._stop(commit, true, {flick});
     }
 
     _acceptsButton(unitId, control) {
@@ -222,6 +244,7 @@ export default class SolaarWorkspaceGlide extends Extension {
             this._gestureAcceleration = this._acceleration;
             this._gestureReleaseDelay = this._releaseDelay;
             this._gestureNaturalDirection = this._naturalDirection;
+            this._gestureSwitchThreshold = this._switchThreshold;
             this._updateCount = 0;
             this._lastInput = [0, 0];
             this._drag = overview
@@ -314,7 +337,8 @@ export default class SolaarWorkspaceGlide extends Extension {
     // fromTracker is true when the stop came from the button hold itself
     // (release, cancel); otherwise GNOME ended it and the tracker must ignore
     // the rest of the hold.
-    _stop(commit, fromTracker = false) {
+    // flick: settle one step in the direction moved however far it went.
+    _stop(commit, fromTracker = false, {flick = false} = {}) {
         const wasStream = this._mode === 'stream';
         const releaseHold = commit && wasStream && this._drag !== null;
         if (wasStream && !fromTracker)
@@ -338,8 +362,9 @@ export default class SolaarWorkspaceGlide extends Extension {
             try {
                 if (this._drag) {
                     if (this._debugProgress)
-                        console.log(`${LOG} ${commit ? 'commit' : 'cancel'}; mode=${this._mode}; kind=${this._kind}; updates=${this._updateCount}; lastInput=${this._lastInput}; progress=${this._drag.progress}`);
-                    this._drag.finish(commit, global.get_current_time());
+                        console.log(`${LOG} ${commit ? 'commit' : 'cancel'}; mode=${this._mode}; kind=${this._kind}; updates=${this._updateCount}; lastInput=${this._lastInput}; progress=${this._drag.progress}; flick=${flick}`);
+                    this._drag.finish(commit, global.get_current_time(),
+                        {threshold: this._gestureSwitchThreshold ?? 0.5, flick});
                 }
             } finally {
                 this._drag = null;
