@@ -1,0 +1,9 @@
+Solaar Workspace Glide is licensed under GPL-2.0-or-later. See LICENSE.
+
+It is a GNOME Shell extension that listens to Movement Stream signals sent by
+Solaar over the session D-Bus. Its preferences window runs the installed Solaar
+to discover buttons and change Solaar's Key/Button Diversion setting. Solaar is
+not bundled and is licensed under GPL-2.0-or-later.
+
+Parts of the GNOME gesture code are carried over from Workspace Glide
+(https://github.com/Cimplex/WorkspaceGlide) by the same author.
