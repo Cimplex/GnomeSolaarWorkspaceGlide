@@ -5,6 +5,11 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 for source_file in extension/*.js; do node --check "$source_file"; done
 python3 -m py_compile extension/solaarProbe.py && rm -rf extension/__pycache__
-bash -n install.sh uninstall.sh pack.sh
+bash -n install.sh uninstall.sh pack.sh tests/shell/*.sh
 glib-compile-schemas --strict --dry-run extension/schemas
 node --test tests/*.test.js
+
+# Optional: run the extension in a headless GNOME Shell with a fake Solaar.
+if [[ "${1:-}" == "--shell" ]]; then
+    tests/shell/run.sh
+fi
