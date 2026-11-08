@@ -1,0 +1,6 @@
+gschemas.compiled
+*.shell-extension.zip
+dist/
+node_modules/
+__pycache__/
+*.log
