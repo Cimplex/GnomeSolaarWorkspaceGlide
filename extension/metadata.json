@@ -5,6 +5,6 @@
   "url": "https://github.com/Cimplex/GnomeSolaarWorkspaceGlide",
   "settings-schema": "org.gnome.shell.extensions.solaar-workspace-glide",
   "shell-version": ["50"],
-  "version": 1,
-  "version-name": "0.1.0"
+  "version": 2,
+  "version-name": "0.1.1"
 }
